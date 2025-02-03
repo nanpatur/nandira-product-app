@@ -5,14 +5,16 @@ import {
   Divider,
   Form,
   FormLayout,
+  Frame,
   Page,
   TextField,
+  Toast,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import {
-  redirect,
   useFetcher,
   useLoaderData,
+  useNavigate,
   useRouteError,
 } from "@remix-run/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -71,7 +73,7 @@ export const action = async ({ request }) => {
         },
       },
     );
-    return redirect("/app");
+    return { status: 200, message: "Product updated successfully" };
   } catch (error) {
     return {
       status: 500,
@@ -87,6 +89,13 @@ export function ErrorBoundary() {
 
 export default function ProductEditPage() {
   const [formValues, setFormValues] = useState({});
+  const [toastMessage, setToastMessage] = useState("");
+  const navigate = useNavigate();
+
+  const toastMarkup = toastMessage ? (
+    <Toast content={toastMessage} onDismiss={() => setToastMessage("")} />
+  ) : null;
+
   const fetcher = useFetcher();
   const product = useLoaderData();
 
@@ -105,6 +114,13 @@ export default function ProductEditPage() {
     fetcher.submit(body, { method: "post" });
   }, [fetcher, formValues]);
 
+  useEffect(() => {
+    if (fetcher.data?.status === 200) {
+      setToastMessage(fetcher.data.message);
+      navigate("/app");
+    }
+  }, [fetcher.data, navigate]);
+
   const handleTitleChange = useCallback(
     (value) => setFormValues((prev) => ({ ...prev, title: value })),
     [],
@@ -117,41 +133,51 @@ export default function ProductEditPage() {
   const isLoading = fetcher.state === "submitting" || fetcher.state === "loading";
 
   return (
-    <Page
-      title="Edit Product"
-      backAction={{ content: "Products", url: "/app" }}
-      primaryAction={{
-        content: "Save",
-        onAction: handleSubmit,
-        disabled: !isFormValid,
-        loading: isLoading,
-      }}
-      narrowWidth
-    >
-      <Card>
-        <BlockStack gap="500">
-          {fetcher?.data?.status === 500 && (
-            <>
-              <Banner title="Product Edit Error" tone="critical">
-                <p>{fetcher?.data?.message}</p>
-              </Banner>
-              <Divider />
-            </>
-          )}
-          <Form onSubmit={handleSubmit}>
-            <FormLayout>
-              <TextField
-                value={formValues?.title}
-                onChange={handleTitleChange}
-                label="Title"
-                type="title"
-                autoComplete="title"
-                disabled={isLoading}
-              />
-            </FormLayout>
-          </Form>
-        </BlockStack>
-      </Card>
-    </Page>
+    <Frame>
+      <Page
+        title="Edit Product"
+        backAction={{ content: "Products", url: "/app" }}
+        primaryAction={{
+          content: "Save",
+          onAction: handleSubmit,
+          disabled: !isFormValid,
+          loading: isLoading,
+        }}
+        secondaryActions={[
+          {
+            content: "Reset Changes",
+            onAction: () => setFormValues({ ...product }),
+            disabled: isLoading,
+          },
+        ]}
+        narrowWidth
+      >
+        <Card>
+          <BlockStack gap="500">
+            {fetcher?.data?.status === 500 && (
+              <>
+                <Banner title="Product Edit Error" tone="critical">
+                  <p>{fetcher?.data?.message}</p>
+                </Banner>
+                <Divider />
+              </>
+            )}
+            <Form onSubmit={handleSubmit}>
+              <FormLayout>
+                <TextField
+                  value={formValues?.title}
+                  onChange={handleTitleChange}
+                  label="Title"
+                  type="title"
+                  autoComplete="title"
+                  disabled={isLoading}
+                />
+              </FormLayout>
+            </Form>
+          </BlockStack>
+        </Card>
+        {toastMarkup}
+      </Page>
+    </Frame>
   );
 }
