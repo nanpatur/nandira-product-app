@@ -2,6 +2,7 @@ import {
   Banner,
   BlockStack,
   Card,
+  ContextualSaveBar,
   Divider,
   Form,
   FormLayout,
@@ -10,13 +11,13 @@ import {
   TextField,
   Toast,
 } from "@shopify/polaris";
-import { authenticate } from "../shopify.server";
 import {
   useFetcher,
   useLoaderData,
   useNavigate,
   useRouteError,
 } from "@remix-run/react";
+import { authenticate } from "../shopify.server";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export const loader = async ({ params, request }) => {
@@ -77,14 +78,18 @@ export const action = async ({ request }) => {
   } catch (error) {
     return {
       status: 500,
-      message: error?.body?.errors?.message,
+      message: error?.body?.errors?.message || "An error occurred",
     };
   }
 };
 
 export function ErrorBoundary() {
   const error = useRouteError();
-  return <pre>{JSON.stringify(error, null, 2)}</pre>;
+  return (
+    <Banner title="An error occurred" status="critical">
+      <p>{error?.message || "Something went wrong. Please try again later."}</p>
+    </Banner>
+  );
 }
 
 export default function ProductEditPage() {
@@ -127,31 +132,35 @@ export default function ProductEditPage() {
   );
 
   const isFormValid = useMemo(() => {
-    return formValues?.title?.length > 0 || formValues?.title === product?.title;
+    return (
+      formValues?.title?.length > 0 && formValues?.title !== product?.title
+    );
   }, [formValues, product]);
 
-  const isLoading = fetcher.state === "submitting" || fetcher.state === "loading";
+  const isLoading = useMemo(() => fetcher.state === "submitting" || fetcher.state === "loading", [fetcher.state]);
 
   return (
     <Frame>
       <Page
         title="Edit Product"
         backAction={{ content: "Products", url: "/app" }}
-        primaryAction={{
-          content: "Save",
-          onAction: handleSubmit,
-          disabled: !isFormValid,
-          loading: isLoading,
-        }}
-        secondaryActions={[
-          {
-            content: "Reset Changes",
-            onAction: () => setFormValues({ ...product }),
-            disabled: isLoading,
-          },
-        ]}
         narrowWidth
       >
+        {isFormValid && (
+          <ContextualSaveBar
+            alignContentFlush
+            message="Unsaved changes"
+            saveAction={{
+              loading: isLoading,
+              onAction: handleSubmit,
+            }}
+            discardAction={{
+              disabled: isLoading,
+              content: "Reset Changes",
+              onAction: () => setFormValues({ ...product }),
+            }}
+          />
+        )}
         <Card>
           <BlockStack gap="500">
             {fetcher?.data?.status === 500 && (
@@ -168,7 +177,7 @@ export default function ProductEditPage() {
                   value={formValues?.title}
                   onChange={handleTitleChange}
                   label="Title"
-                  type="title"
+                  type="text"
                   autoComplete="title"
                   disabled={isLoading}
                 />

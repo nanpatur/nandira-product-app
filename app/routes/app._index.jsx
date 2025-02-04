@@ -1,4 +1,4 @@
-import { useFetcher, useLoaderData, useNavigate } from "@remix-run/react";
+import { useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -7,7 +7,6 @@ import {
   Pagination,
   IndexFilters,
   useSetIndexFiltersMode,
-  Filters,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { ImageIcon } from "@shopify/polaris-icons";
@@ -18,7 +17,7 @@ export const loader = async ({ request }) => {
   const cursor = url.searchParams.get("cursor");
   const direction = url.searchParams.get("direction");
   const query = url.searchParams.get("q");
-  const sortKey = url.searchParams.get("sortKey");
+  const sortKey = url.searchParams.get("sortKey") || "CREATED_AT";
 
   const { admin } = await authenticate.admin(request);
   const response = await admin.graphql(
@@ -65,15 +64,19 @@ export const loader = async ({ request }) => {
 };
 
 export default function Index() {
-  const [params, setParams] = useState({
-    sortKey: "CREATED_AT",
-  });
+  const [params, setParams] = useState({});
   const { products, productsPageInfo } = useLoaderData();
   const navigate = useNavigate();
   const { mode, setMode } = useSetIndexFiltersMode();
 
   useEffect(() => {
-    const paramsUrl = new URLSearchParams(params);
+    if (Object.keys(params).length === 0) return;
+    const paramsUrl = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+      if (params[key]) {
+        paramsUrl.append(key, params[key]);
+      }
+    });
     navigate(`/app?${paramsUrl.toString()}`);
   }, [navigate, params]);
 
@@ -98,13 +101,17 @@ export default function Index() {
     setParams({
       ...params,
       q: value,
+      cursor: null,
+      direction: null,
     });
   }, [params]);
 
   const handleQueryValueRemove = useCallback(() => {
     setParams({
       ...params,
-      q: undefined,
+      q: '',
+      cursor: null,
+      direction: null,
     });
   }, [params]);
 
@@ -135,9 +142,9 @@ export default function Index() {
       <Card padding={0}>
         <IndexFilters
           sortOptions={sortOptions}
-          sortSelected={params.sortKey}
-          onSort={(value) => setParams({ ...params, sortKey: value })}
-          queryValue={params.q}
+          sortSelected={params?.sortKey || "CREATED_AT"}
+          onSort={(value) => setParams({ ...params, sortKey: value, cursor: null, direction: null })}
+          queryValue={params?.q || ""}
           queryPlaceholder="Search products"
           onQueryChange={handleFiltersQueryChange}
           onQueryClear={handleQueryValueRemove}
